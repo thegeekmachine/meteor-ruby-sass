@@ -213,5 +213,5 @@ var compile = function(compileStep) {
   }
 }
 
-Plugin.registerSourceHandler("scss", compile);
-Plugin.registerSourceHandler("sass", compile);
+Plugin.registerSourceHandler("scss", {archMatching: 'web'}, compile);
+Plugin.registerSourceHandler("sass", {archMatching: 'web'}, compile);
