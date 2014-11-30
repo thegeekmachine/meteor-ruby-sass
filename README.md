@@ -11,7 +11,7 @@ Package required `sass` gem.
 
 ### Add package
 
-    $ meteor add ovcharik:ruby-sass
+    $ meteor add grigio:ruby-sass
 
 
 ## Configuration

@@ -1,7 +1,7 @@
 Package.describe({
   summary: 'Style with attitude.',
-  git: "https://github.com/ovcharik/meteor-ruby-sass.git",
-  version: "0.0.7"
+  git: "https://github.com/grigio/meteor-ruby-sass.git",
+  version: "0.0.8"
 });
 
 Package._transitional_registerBuildPlugin({
@@ -11,7 +11,7 @@ Package._transitional_registerBuildPlugin({
     'plugin/compile-sass.js'
   ],
   npmDependencies: {
-    'fibers': '1.0.1',
+    // 'fibers': '1.0.1',
     'minimatch': '0.4.0'
   }
 });
