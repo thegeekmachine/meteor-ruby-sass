@@ -1,217 +1,241 @@
-var PATH   = Npm.require("path");
-var FS     = Npm.require("fs");
-var MATCH  = Npm.require('minimatch');
-var FUTURE = Npm.require('fibers/future');
-var EXEC   = Npm.require('child_process').exec;
-var AEXEC  = FUTURE.wrap(EXEC, 1);
-
-// Utils
-var Utils = {
-  isEmpty: function(obj) {
-    if (typeof obj === "object") {
-      if (obj instanceof Array)
-        return obj.length === 0;
-      else {
-        return Object.keys(obj).length === 0;
-      }
+Exec = {}; // Thanks to sixolet's gist 6091321
+Utils = {};
+Cache = function () {
+    if (this instanceof Cache) {
+        return Cache.instance = Cache.instance || this;
+    } else {
+        return Cache.instance = Cache.instance || new Cache;
     }
-    else {
-      return !Boolean(obj);
-    }
-  },
+};
+Compiler = {};
 
-  readJSON: function(file) {
-    var content = FS.readFileSync(file);
-    return JSON.parse(content);
-  },
+var Fiber = Npm.require('fibers');
+var Future = Npm.require('fibers/future');
+var Process = Npm.require('child_process');
+var Path = Npm.require('path');
+var Fs = Npm.require('fs');
+var Lodash = Npm.require('lodash');
 
-  fileModifiedTime: function(file) {
-    var stat = FS.statSync(file);
-    return stat ? stat.mtime.getTime() : null;
-  },
+Exec.spawn = function (command, args, options) {
+    var out = "";
+    var err = "";
+    var ret = new Future;
+    options = options || {};
 
-  params: {
-    bool: function(name, value) {
-      return function(v) {
-        if (v === value)
-          return name;
-        else
-          return null;
-      }
-    },
-    param: function(name) {
-      return function(value) {
-        if (value)
-          return name + " " + value;
-        else
-          return null;
-      }
-    }
-  }
-}
-
-// Cache
-var Cache = function() {
-  if (this instanceof Cache) {
-    return Cache.instance = Cache.instance || this;
-  }
-  else {
-    return Cache.instance = Cache.instance || new Cache;
-  }
-}
-
-Cache.prototype = {
-  storage: {},
-
-  forceWrite: function(key, data, time) {
-    time = time || (new Date).getTime()
-    this.storage[key] = {
-      data: data,
-      modified: time
-    }
-  },
-
-  outdated: function(key, time) {
-    return !this.storage[key] || !time || this.storage[key].modified < time;
-  },
-
-  outdatedFile: function(path) {
-    var time = Utils.fileModifiedTime(path);
-    return this.outdated(path, time);
-  },
-
-  write: function(key, data, time) {
-    time = time || (new Date).getTime()
-    if (this.outdated(key, time)) {
-      this.forceWrite(key, data, time);
-      return true;
-    }
-    return false;
-  },
-
-  writeFile: function(path, data, time) {
-    time = time || (new Date).getTime()
-    if (this.outdatedFile(path, time)) {
-      this.forceWrite(path, data, time);
-      return true;
-    }
-    return false;
-  },
-
-  get: function (key) {
-    return this.storage[key] && this.storage[key].data || null;
-  }
-}
-
-// Command
-var Cmd = function(optionsFile) {
-  this._optionsFile = optionsFile;
-}
-
-Cmd.prototype = {
-  _cache: new Cache(),
-  _compiler: "sass",
-  _optionsMap: {
-    "style":           Utils.params.param("--style"),
-    "cacheLocation":   Utils.params.param("--cache-location"),
-    "import":          Utils.params.param("--load-path"),
-    "precision":       Utils.params.param("--precision"),
-    "require":         Utils.params.param("--require"),
-    "defaultEncoding": Utils.params.param("--default-encoding"),
-
-    "unixNewlines":    Utils.params.bool("--unix-newlines", true),
-    "comments":        Utils.params.bool("--line-comments", true),
-    "scss":            Utils.params.bool("--scss",          true),
-    "compass":         Utils.params.bool("--compass",       true),
-    "noCache":         Utils.params.bool("--no-cache",      true),
-    "sourcemap":       Utils.params.bool("--sourcemap",     true)
-  },
-
-  options: function() {
-    if (this._cache.outdatedFile(this._optionsFile)) {
-      var data = Utils.readJSON(this._optionsFile);
-      this._cache.writeFile(this._optionsFile, data);
-    }
-    return this._cache.get(this._optionsFile);
-  },
-
-  getFile: function(options, file) {
-    if (typeof options === "string") {
-      return options;
-    }
-    else if (typeof options === "object") {
-      for (var option in options) {
-        var patterns = options[option];
-        if (typeof patterns === "string") {
-          patterns = [patterns];
-        }
-        if (patterns instanceof Array) {
-          for (var i in patterns) {
-            pattern = patterns[i];
-            if (MATCH(file, pattern)) {
-              return option;
+    var proc = Process.spawn(command, args, options);
+    proc.stdout.setEncoding('utf8');
+    proc.stderr.setEncoding('utf8');
+    
+    if (options.captureOut) {
+        proc.stdout.on('data', Meteor.bindEnvironment(function (data) {
+            if (options.log) {
+                console.log(data);
             }
-          }
+
+            out += data;
+
+            if (typeof options.captureOut === 'function') {
+                options.captureOut(data);
+            }
+        }, function (err) {
+            Log.warn(err);
+        }));
+    }
+
+    if (options.captureErr) {
+        proc.stderr.on('data', Meteor.bindEnvironment(function (data) {
+            if (options.log) {
+                console.error(data);
+            }
+
+            err += data;
+
+            if (typeof options.captureErr === 'function') {
+                options.captureErr(data);
+            }
+        }, function (err) {
+            Log.warn(err);
+        }));
+    }
+
+    proc.on('close', Meteor.bindEnvironment(function (code) {
+        ret.return({
+            stdout: out,
+            stderr: err,
+            code: code
+        });
+    }));
+
+    ret.proc = proc;
+    return ret;
+};
+
+Utils.loadJSONFile = function (filePath) {
+    var content = Fs.readFileSync(filePath);
+
+    try {
+        return JSON.parse(content);
+    }
+    catch (e) {
+        console.error('Error: failed to parse ', filePath, ' as JSON');
+        return {};
+    }
+};
+
+Utils.fileLastModifiedTime = function (filePath) {
+    var stat = Fs.statSync(filePath);
+    
+    try {
+        return stat.mtime.getTime();
+    }
+    catch (e) {
+        console.error('Error: could not stat ', filePath);
+        return null;
+    }
+};
+
+Utils.makeCliOption = function (option, defaultValue) {
+    defaultValue = defaultValue || null;
+
+    return { 'option': option, 'default': defaultValue };
+};
+
+_.extend(Cache.prototype, {
+    storage: {},
+
+    store: function (key, data, time) {
+        time = time || _.now();
+
+        if (!_.has(this.storage, key)) {
+            console.warn('Warning: Key not found in cache: ', key);
+            return false;
         }
-      }
+
+        this.storage[key] = {
+            data: data,
+            modified: time
+        };
+
+        return true;
+    },
+
+    isOutdated: function (key, time) {
+        return !this.storage[key] || !time || this.storage[key].modified < time;
+    },
+
+    isOutdatedFile: function (filePath) {
+        var time = Utils.fileLastModifiedTime(filePath);
+
+        return this.isOutdated(filePath, time);
+    },
+
+    put: function (key, data, time) {
+        time = time || _.now();
+
+        if (this.isOutdated(key, time)) {
+            return this.store(key, data, time);
+        }
+
+        return false;
+    },
+
+    putFile: function (filePath, fileContents, time) {
+        time = time || _.now();
+
+        if (this.isOutdatedFile(filePath)) {
+            return this.store(filePath, fileContents, time);
+        }
+
+        return false;
+    },
+
+    get: function (key) {
+        if (!_.has(this.storage, key)) {
+            console.error('Key not found in cache: ', key);
+            return null;
+        }
+
+        return this.storage[key].data;
     }
-    return null;
-  },
+});
 
-  buildCmd: function(options, file) {
-    var result = [];
-    result.push(this._compiler);
-    for (var key in this._optionsMap) {
-      var r = this._optionsMap[key](options[key]);
-      if (r) result.push(r);
+_.extend({
+    cache: new Cache(),
+
+    defaultOptions: {
+        'style': Utils.makeCliOption('--style'),
+        'cacheLocation': Utils.makeCliOption('--cache-location'),
+        'import': Utils.makeCliOption('--load-path'),
+        'precision': Utils.makeCliOption('--precision'),
+        'require': Utils.makeCliOption('--require'),
+        'defaultEncoding': Utils.makeCliOption('--default-encoding', 'utf-8'),
+        'unixNewlines': Utils.makeCliOption('--unix-newlines', true),
+        'comments': Utils.makeCliOption('--line-comments', true),
+        'scss': Utils.makeCliOption('--scss', true),
+        'compass': Utils.makeCliOption('--compass', true),
+        'noCache': Utils.makeCliOption('--no-cache', true)
     }
-    result.push(file);
-    return result.join(" ");
-  },
+}, Compiler);
 
-  exec: function(path) {
-    var options = this.options();
-    if (!options) throw "Options not loaded";
-
-    var file = this.getFile(options.files || options.file, path);
-    if (!file) throw "Config files don't match '" + path + "'";
-
-    var time = Utils.fileModifiedTime(path);
-    if (this._cache.outdated(file, time)) {
-      cmd = this.buildCmd(options, file);
-      var data = AEXEC(cmd).wait();
-      this._cache.write(file, data);
+Compiler.sourceHandler = function (compileStep) {
+    if (Path.basename(compileStep.inputPath)[0] === '_') {
+        return;
     }
-    return {
-      data: this._cache.get(file),
-      file: file + ".css"
+
+    var self = this,
+        rubySassOptions = {};
+
+    var optionsFile = Path.join(process.cwd(), 'ruby-sass.json'),
+        time = Utils.fileLastModifiedTime(optionsFile);
+    
+    if (self.cache.isOutdatedFile(optionsFile, time)) {
+        var customOptions = {};
+
+        if (Fs.existsSync(optionsFile)) {
+            customOptions = Utils.loadJSONFile(optionsFile);
+        }
+
+        var defaults = _.transform(this.defaultOptions, function (defaults, value, key) {
+            defaults[key] = value.default;
+        });
+
+        var options = _.extend({}, defaults, customOptions);
+        rubySassOptions = _.transform(options, function (result, value, key) {
+            if (!_.has(self.defaultOptions, key)) {
+                return;
+            }
+
+            var opt = self.defaultOptions[key];
+            result[opt.option] = value;
+        });
+
+        self.cache.put('OPTIONS', rubySassOptions);
+    } else {
+        rubySassOptions = self.cache.get('OPTIONS');
     }
-  },
 
-  getError: function() {
-    return this._error;
-  }
-}
-
-// Main
-var compile = function(compileStep) {
-  var optionsFile = PATH.join(process.cwd(), 'ruby-sass.json');
-  var cmd   = new Cmd(optionsFile);
-  var path  = compileStep.inputPath;
-
-  try {
-    var data = cmd.exec(path);
-    compileStep.addStylesheet({
-      path: data.file,
-      data: data.data
+    var args = _.transform(rubySassOptions, function (result, value, key) {
+        result += key + ' ' value;
     });
-  }
-  catch (error) {
-    compileStep.error({
-      message: "Sass compiler error: \n" + error.message
-    });
-  }
-}
 
-Plugin.registerSourceHandler("scss", {archMatching: 'web'}, compile);
-Plugin.registerSourceHandler("sass", {archMatching: 'web'}, compile);
+    args += ' ' + compileStep.fullInputPath;
+
+    try {
+        Exec.spawn('sass', args, {
+            captureOut: function (css) {
+                compileStep.addStylesheet({
+                    path: compileStep.inputPath + ".css",
+                    data: css
+                });
+            }
+        });
+    }
+    catch (e) {
+        compileStep.error({
+            message: 'Sass compiler error:\n' + e.message
+        });
+    }
+};
+
+Plugin.registerSourceHandler('scss', { archMatching: 'web' }, Compiler.sourceHandler);
+Plugin.registerSourceHandler('sass', { archMatching: 'web' }, Compiler.sourceHandler);

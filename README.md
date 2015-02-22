@@ -11,32 +11,12 @@ Package required `sass` gem.
 
 ### Add package
 
-    $ meteor add grigio:ruby-sass
+    $ meteor add thegeekmachine:ruby-sass
 
 
 ## Configuration
 
 Add a `ruby-sass.json` file to root directory of project.
-
-
-### file
-
-type: `string`
-
-Path to main file. Required unless specified `files`.
-
-
-### files
-
-type: `object`
-
-Format:
-
-    'files': {
-      'main file': 'dependencies', // can be pattern, like 'scss/home/**/*.scss'
-      // or
-      'main file': ['array', 'of', 'dependencies']
-    }
 
 
 ### unixNewlines
@@ -114,22 +94,3 @@ Don't cache to sassc files.
 type: `string`
 
 Specify the default encoding for Sass files.
-
-
-
-## Examples
-
-### Simple
-
-    {
-      "file": "path/to/main/sass/file.scss"
-    }
-
-### Files
-
-    {
-      "files": {
-        "styles/application.scss": ["styles/**/*.scss", "include/variabled.css"],
-        "vendor/bootstrap/bootstrap.scss": "vendor/bootstrap/**/*.scss"
-      }
-    }
