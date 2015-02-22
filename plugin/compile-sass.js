@@ -9,12 +9,11 @@ Cache = function () {
 };
 Compiler = {};
 
-var Fiber = Npm.require('fibers');
 var Future = Npm.require('fibers/future');
 var Process = Npm.require('child_process');
 var Path = Npm.require('path');
 var Fs = Npm.require('fs');
-var Lodash = Npm.require('lodash');
+var _ = Npm.require('lodash');
 
 Exec.spawn = function (command, args, options) {
     var out = "";
@@ -235,7 +234,7 @@ Compiler.sourceHandler = function (compileStep) {
                     data: css
                 });
             }
-        });
+        }).wait();
     }
     catch (e) {
         compileStep.error({
