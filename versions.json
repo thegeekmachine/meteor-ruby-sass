@@ -11,7 +11,7 @@
   ],
   "pluginDependencies": [
     [
-      "meteor-ruby-sass",
+      "thegeekmachine:ruby-sass",
       {}
     ]
   ],
