@@ -163,16 +163,16 @@ _.extend({
     cache: new Cache(),
 
     defaultOptions: {
-        'style': Utils.makeCliOption('--style'),
-        'cacheLocation': Utils.makeCliOption('--cache-location'),
+        'style': Utils.makeCliOption('--style=', 'nested'),
+        'cacheLocation': Utils.makeCliOption('--cache-location=', '.sass-cache'),
         'import': Utils.makeCliOption('--load-path'),
-        'precision': Utils.makeCliOption('--precision'),
+        'precision': Utils.makeCliOption('--precision=', '5'),
         'require': Utils.makeCliOption('--require'),
         'defaultEncoding': Utils.makeCliOption('--default-encoding', 'utf-8'),
         'unixNewlines': Utils.makeCliOption('--unix-newlines', true),
-        'comments': Utils.makeCliOption('--line-comments', true),
+        'comments': Utils.makeCliOption('--line-comments', false),
         'scss': Utils.makeCliOption('--scss', true),
-        'compass': Utils.makeCliOption('--compass', true),
+        'compass': Utils.makeCliOption('--compass', false),
         'noCache': Utils.makeCliOption('--no-cache', true)
     }
 }, Compiler);
@@ -196,7 +196,11 @@ Compiler.sourceHandler = function (compileStep) {
         }
 
         var defaults = _.transform(this.defaultOptions, function (defaults, value, key) {
-            defaults[key] = value.default;
+            if (value.default === null) {
+                return;
+            }
+
+            defaults[key] = _.isBoolean(value.default) ? null : value.default;
         });
 
         var options = _.extend({}, defaults, customOptions);
@@ -215,7 +219,10 @@ Compiler.sourceHandler = function (compileStep) {
     }
 
     var args = _.transform(rubySassOptions, function (result, value, key) {
-        result += key + ' ' value;
+        result += key;
+        if (value !== null) {
+            result += ' ' + value;
+        }
     });
 
     args += ' ' + compileStep.fullInputPath;
