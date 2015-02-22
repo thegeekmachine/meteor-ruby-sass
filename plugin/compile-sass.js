@@ -26,7 +26,7 @@ Exec.spawn = function (command, args, options) {
     proc.stderr.setEncoding('utf8');
     
     if (options.captureOut) {
-        proc.stdout.on('data', Meteor.bindEnvironment(function (data) {
+        proc.stdout.on('data', function (data) {
             if (options.log) {
                 console.log(data);
             }
@@ -38,11 +38,11 @@ Exec.spawn = function (command, args, options) {
             }
         }, function (err) {
             Log.warn(err);
-        }));
+        });
     }
 
     if (options.captureErr) {
-        proc.stderr.on('data', Meteor.bindEnvironment(function (data) {
+        proc.stderr.on('data', function (data) {
             if (options.log) {
                 console.error(data);
             }
@@ -54,16 +54,16 @@ Exec.spawn = function (command, args, options) {
             }
         }, function (err) {
             Log.warn(err);
-        }));
+        });
     }
 
-    proc.on('close', Meteor.bindEnvironment(function (code) {
+    proc.on('close', function (code) {
         ret.return({
             stdout: out,
             stderr: err,
             code: code
         });
-    }));
+    });
 
     ret.proc = proc;
     return ret;
@@ -104,11 +104,6 @@ _.extend(Cache.prototype, {
 
     store: function (key, data, time) {
         time = time || _.now();
-
-        if (!_.has(this.storage, key)) {
-            console.warn('Warning: Key not found in cache: ', key);
-            return false;
-        }
 
         this.storage[key] = {
             data: data,
@@ -158,7 +153,7 @@ _.extend(Cache.prototype, {
     }
 });
 
-_.extend({
+_.extend(Compiler, {
     cache: new Cache(),
 
     defaultOptions: {
@@ -167,74 +162,69 @@ _.extend({
         'import': Utils.makeCliOption('--load-path'),
         'precision': Utils.makeCliOption('--precision=', '5'),
         'require': Utils.makeCliOption('--require'),
-        'defaultEncoding': Utils.makeCliOption('--default-encoding', 'utf-8'),
+        'defaultEncoding': Utils.makeCliOption('--default-encoding=', 'utf-8'),
         'unixNewlines': Utils.makeCliOption('--unix-newlines', true),
         'comments': Utils.makeCliOption('--line-comments', false),
         'scss': Utils.makeCliOption('--scss', true),
         'compass': Utils.makeCliOption('--compass', false),
         'noCache': Utils.makeCliOption('--no-cache', true)
     }
-}, Compiler);
+});
 
 Compiler.sourceHandler = function (compileStep) {
     if (Path.basename(compileStep.inputPath)[0] === '_') {
         return;
     }
 
-    var self = this,
-        rubySassOptions = {};
+    var compilerArgs = {};
 
     var optionsFile = Path.join(process.cwd(), 'ruby-sass.json'),
         time = Utils.fileLastModifiedTime(optionsFile);
     
-    if (self.cache.isOutdatedFile(optionsFile, time)) {
+    if (Compiler.cache.isOutdatedFile(optionsFile, time)) {
         var customOptions = {};
 
         if (Fs.existsSync(optionsFile)) {
             customOptions = Utils.loadJSONFile(optionsFile);
         }
 
-        var defaults = _.transform(this.defaultOptions, function (defaults, value, key) {
+        var defaults = _.transform(Compiler.defaultOptions, function (result, value, key) {
             if (value.default === null) {
                 return;
             }
 
-            defaults[key] = _.isBoolean(value.default) ? null : value.default;
+            result[key] = _.isBoolean(value.default) ? null : value.default;
         });
 
         var options = _.extend({}, defaults, customOptions);
-        rubySassOptions = _.transform(options, function (result, value, key) {
-            if (!_.has(self.defaultOptions, key)) {
-                return;
+
+        compilerArgs = _.map(options, function (value, key, result) {
+            var opt = Compiler.defaultOptions[key];
+            var arg = opt.option;
+
+            if (value !== null) {
+                arg += arg[arg.length - 1] === '=' ? value : ' ' + value;
             }
 
-            var opt = self.defaultOptions[key];
-            result[opt.option] = value;
+            return arg;
         });
 
-        self.cache.put('OPTIONS', rubySassOptions);
+        Compiler.cache.put('OPTIONS', compilerArgs);
     } else {
-        rubySassOptions = self.cache.get('OPTIONS');
+        compilerArgs = Compiler.cache.get('OPTIONS');
     }
 
-    var args = _.transform(rubySassOptions, function (result, value, key) {
-        result += key;
-        if (value !== null) {
-            result += ' ' + value;
-        }
-    });
-
-    args += ' ' + compileStep.fullInputPath;
+    compilerArgs.push(compileStep.fullInputPath);
 
     try {
-        Exec.spawn('sass', args, {
-            captureOut: function (css) {
-                compileStep.addStylesheet({
-                    path: compileStep.inputPath + ".css",
-                    data: css
-                });
-            }
+        var compilerOutput = Exec.spawn('sass', compilerArgs, {
+            captureOut: true
         }).wait();
+
+        compileStep.addStylesheet({
+            path: compileStep.inputPath + '.css',
+            data: compilerOutput.stdout
+        });
     }
     catch (e) {
         compileStep.error({
@@ -243,5 +233,9 @@ Compiler.sourceHandler = function (compileStep) {
     }
 };
 
-Plugin.registerSourceHandler('scss', { archMatching: 'web' }, Compiler.sourceHandler);
-Plugin.registerSourceHandler('sass', { archMatching: 'web' }, Compiler.sourceHandler);
+Plugin.registerSourceHandler("scss", {archMatching: 'web'}, Compiler.sourceHandler);
+Plugin.registerSourceHandler('sass', {archMatching: 'web'}, Compiler.sourceHandler);
+
+Plugin.registerSourceHandler("scssimport", function () {
+    // Do nothing
+});
