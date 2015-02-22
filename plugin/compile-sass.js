@@ -158,14 +158,14 @@ _.extend(Compiler, {
 
     defaultOptions: {
         'style': Utils.makeCliOption('--style=', 'nested'),
-        'cacheLocation': Utils.makeCliOption('--cache-location=', '.sass-cache'),
-        'import': Utils.makeCliOption('--load-path'),
+        'import': Utils.makeCliOption('--load-path='),
         'precision': Utils.makeCliOption('--precision=', '5'),
-        'require': Utils.makeCliOption('--require'),
-        'defaultEncoding': Utils.makeCliOption('--default-encoding=', 'utf-8'),
-        'unixNewlines': Utils.makeCliOption('--unix-newlines', true),
-        'comments': Utils.makeCliOption('--line-comments', false),
+        'require': Utils.makeCliOption('--require='),
         'scss': Utils.makeCliOption('--scss', true),
+        'unixNewlines': Utils.makeCliOption('--unix-newlines', false),
+        'comments': Utils.makeCliOption('--line-comments', false),
+        'defaultEncoding': Utils.makeCliOption('--default-encoding'),
+        'cacheLocation': Utils.makeCliOption('--cache-location=', '.sass-cache'),
         'compass': Utils.makeCliOption('--compass', false),
         'noCache': Utils.makeCliOption('--no-cache', true)
     }
@@ -220,6 +220,10 @@ Compiler.sourceHandler = function (compileStep) {
         var compilerOutput = Exec.spawn('sass', compilerArgs, {
             captureOut: true
         }).wait();
+
+        if (compilerOutput.code !== 0) {
+            throw new Error("Compiler exited abnormally with code " + compilerOutput.code);
+        }
 
         compileStep.addStylesheet({
             path: compileStep.inputPath + '.css',
