@@ -84,9 +84,9 @@ The path to put cached Sass files. Defaults to `.sass-cache`
 
 ### noCache
 
-type: `boolean`, default: `false`
+type: `boolean`, default: `true`
 
-Don't cache to sassc files.
+Don't cache sassc files.
 
 
 ### defaultEncoding
