@@ -2,7 +2,8 @@ Package.describe({
     summary: 'Style with attitude.',
     git: "https://github.com/thegeekmachine/meteor-ruby-sass.git",
     version: "0.1.0",
-    name: 'thegeekmachine:ruby-sass'
+    name: 'thegeekmachine:ruby-sass',
+    environments: ['server']
 });
 
 Package.registerBuildPlugin({
@@ -16,3 +17,4 @@ Package.registerBuildPlugin({
         'lodash': '2.4.1'
     }
 });
+

@@ -7,7 +7,6 @@ Cache = function () {
         return Cache.instance = Cache.instance || new Cache;
     }
 };
-Compiler = {};
 
 var Future = Npm.require('fibers/future');
 var Process = Npm.require('child_process');
@@ -153,7 +152,10 @@ _.extend(Cache.prototype, {
     }
 });
 
-_.extend(Compiler, {
+var Compiler = function () {
+};
+
+_.extend(Compiler.prototype, {
     cache: new Cache(),
 
     defaultOptions: {
@@ -168,77 +170,95 @@ _.extend(Compiler, {
         'cacheLocation': Utils.makeCliOption('--cache-location=', '.sass-cache'),
         'compass': Utils.makeCliOption('--compass', false),
         'noCache': Utils.makeCliOption('--no-cache', true)
+    },
+   
+    options: function () {
+        var optionsFile = Path.join(process.cwd(), 'ruby-sass.json'),
+            time = Utils.fileLastModifiedTime(optionsFile);
+        
+        if (this.cache.isOutdatedFile(optionsFile, time)) {
+            var customOptions = {};
+
+            if (Fs.existsSync(optionsFile)) {
+                customOptions = Utils.loadJSONFile(optionsFile);
+            }
+
+            var defaults = _.transform(this.defaultOptions, function (result, value, key) {
+                if (value.default === null) {
+                    return;
+                }
+
+                result[key] = _.isBoolean(value.default) ? null : value.default;
+            });
+
+            var options = _.extend({}, defaults, customOptions);
+
+            var self = this;
+            var compilerArgs = _.map(options, function (value, key, result) {
+                var opt = self.defaultOptions[key];
+                var arg = opt.option;
+
+                if (value !== null) {
+                    arg += arg[arg.length - 1] === '=' ? value : ' ' + value;
+                }
+
+                return arg;
+            });
+
+            this.cache.put('OPTIONS', compilerArgs);
+        }
+
+        return this.cache.get('OPTIONS');
+    },
+
+    compile: function (sourceFile) {
+        if (Path.basename(sourceFile)[0] === '_') {
+            return;
+        }
+
+        var compilerArgs = this.options()
+
+        var time = Utils.fileLastModifiedTime(sourceFile);
+        if (this.cache.isOutdatedFile(sourceFile, time)) {
+            compilerArgs.push(sourceFile);
+            var data = Exec.spawn('sass', compilerArgs, {
+                captureOut: true
+            }).wait();
+
+            if (data.code !== 0) {
+                throw new Error("Compiler exited abnormally with code " + data.code);
+            }
+
+            this.cache.put(sourceFile, data.stdout);
+        }
+
+        return {
+            data: this.cache.get(sourceFile),
+            file: sourceFile + '.css'
+        };
     }
 });
 
-Compiler.sourceHandler = function (compileStep) {
-    if (Path.basename(compileStep.inputPath)[0] === '_') {
-        return;
-    }
-
-    var compilerArgs = {};
-
-    var optionsFile = Path.join(process.cwd(), 'ruby-sass.json'),
-        time = Utils.fileLastModifiedTime(optionsFile);
-    
-    if (Compiler.cache.isOutdatedFile(optionsFile, time)) {
-        var customOptions = {};
-
-        if (Fs.existsSync(optionsFile)) {
-            customOptions = Utils.loadJSONFile(optionsFile);
-        }
-
-        var defaults = _.transform(Compiler.defaultOptions, function (result, value, key) {
-            if (value.default === null) {
-                return;
-            }
-
-            result[key] = _.isBoolean(value.default) ? null : value.default;
-        });
-
-        var options = _.extend({}, defaults, customOptions);
-
-        compilerArgs = _.map(options, function (value, key, result) {
-            var opt = Compiler.defaultOptions[key];
-            var arg = opt.option;
-
-            if (value !== null) {
-                arg += arg[arg.length - 1] === '=' ? value : ' ' + value;
-            }
-
-            return arg;
-        });
-
-        Compiler.cache.put('OPTIONS', compilerArgs);
-    } else {
-        compilerArgs = Compiler.cache.get('OPTIONS');
-    }
-
-    compilerArgs.push(compileStep.fullInputPath);
+var compile = function(compileStep) {
+    var sourceFile = compileStep.inputPath;
+    var compiler = new Compiler();
 
     try {
-        var compilerOutput = Exec.spawn('sass', compilerArgs, {
-            captureOut: true
-        }).wait();
-
-        if (compilerOutput.code !== 0) {
-            throw new Error("Compiler exited abnormally with code " + compilerOutput.code);
-        }
-
+        var data = compiler.compile(sourceFile);
         compileStep.addStylesheet({
-            path: compileStep.inputPath + '.css',
-            data: compilerOutput.stdout
+            path: data.file,
+            data: data.data
         });
     }
-    catch (e) {
+    catch (error) {
         compileStep.error({
-            message: 'Sass compiler error:\n' + e.message
+            message: "Sass compiler error: \n" + error.message
         });
     }
 };
 
-Plugin.registerSourceHandler("scss", {archMatching: 'web'}, Compiler.sourceHandler);
-Plugin.registerSourceHandler('sass', {archMatching: 'web'}, Compiler.sourceHandler);
+Plugin.registerSourceHandler("scss", {archMatching: 'web'}, compile);
+Plugin.registerSourceHandler('sass', {archMatching: 'web'}, compile);
 
 Plugin.registerSourceHandler("scssimport", function () {
     // Do nothing
