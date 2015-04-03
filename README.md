@@ -1,6 +1,6 @@
 # Ruby sass compiler for meteor
 
-
+The rationale behind forking grigio's plugin is to accommodate for larger SCSS source trees. The older approach wrote the entire output to STDOUT at one go. This implementation consumes the CSS data written to STDOUT as and when it is generated.
 
 ## Install
 
