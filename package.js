@@ -2,8 +2,7 @@ Package.describe({
     summary: 'Style with attitude.',
     git: "https://github.com/thegeekmachine/meteor-ruby-sass.git",
     version: "0.1.1",
-    name: 'thegeekmachine:ruby-sass',
-    environments: ['server']
+    name: 'thegeekmachine:ruby-sass'
 });
 
 Package.registerBuildPlugin({
@@ -17,3 +16,7 @@ Package.registerBuildPlugin({
     }
 });
 
+Package.on_test(function (api) {
+    api.use(['thegeekmachine:ruby-sass', 'tinytest', 'test-helpers', 'templating', 'jquery']);
+    api.add_files(['tests/scss_tests.html', 'tests/scss_tests.js', 'tests/scss_tests.scss'], 'client');
+});

@@ -15,8 +15,8 @@ var Fs = Npm.require('fs');
 var _ = Npm.require('lodash');
 
 Exec.spawn = function (command, args, options) {
-    var out = "";
-    var err = "";
+    var out = '';
+    var err = '';
     var ret = new Future;
     options = options || {};
 
@@ -225,37 +225,40 @@ _.extend(Compiler.prototype, {
                 captureOut: true
             }).wait();
 
+            if (data.code !== 0) {
+                throw new Error('ruby-sass returned non-zero return code (got ' + data.code + ')');
+            }
+
             this.cache.put(sourceFile, data.stdout);
         }
 
         return {
-            data: this.cache.get(sourceFile),
-            file: sourceFile + '.css'
+            data: this.cache.get(sourceFile)
         };
     }
 });
 
 var compile = function(compileStep) {
-    var sourceFile = compileStep.inputPath;
+    var sourceFile = compileStep.fullInputPath;
     var compiler = new Compiler();
 
     try {
         var data = compiler.compile(sourceFile);
         compileStep.addStylesheet({
-            path: data.file,
+            path: compileStep.inputPath + '.css',
             data: data.data
         });
     }
     catch (error) {
         compileStep.error({
-            message: "Sass compiler error: \n" + error.message
+            message: 'Sass compiler error: \n' + error.message
         });
     }
 };
 
-Plugin.registerSourceHandler("scss", {archMatching: 'web'}, compile);
+Plugin.registerSourceHandler('scss', {archMatching: 'web'}, compile);
 Plugin.registerSourceHandler('sass', {archMatching: 'web'}, compile);
 
-Plugin.registerSourceHandler("scssimport", function () {
+Plugin.registerSourceHandler('scssimport', function () {
     // Do nothing
 });
