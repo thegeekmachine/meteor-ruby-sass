@@ -7,13 +7,12 @@ Package.describe({
 });
 
 Package.registerBuildPlugin({
-    name: 'thegeekmachine:ruby-sass',
+    name: 'sassCompiler',
     use: [],
     sources: [
         'plugin/compile-sass.js'
     ],
     npmDependencies: {
-        'fibers': '1.0.1',
         'lodash': '2.4.1'
     }
 });

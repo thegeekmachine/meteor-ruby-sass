@@ -225,10 +225,6 @@ _.extend(Compiler.prototype, {
                 captureOut: true
             }).wait();
 
-            if (data.code !== 0) {
-                throw new Error("Compiler exited abnormally with code " + data.code);
-            }
-
             this.cache.put(sourceFile, data.stdout);
         }
 
