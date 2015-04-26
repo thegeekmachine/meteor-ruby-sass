@@ -221,6 +221,9 @@ _.extend(Compiler.prototype, {
         var time = Utils.fileLastModifiedTime(sourceFile);
         if (this.cache.isOutdatedFile(sourceFile, time)) {
             compilerArgs.push(sourceFile);
+
+            console.log('Exec: sass ' + compilerArgs.join(' '))
+
             var data = Exec.spawn('sass', compilerArgs, {
                 captureOut: true
             }).wait();
