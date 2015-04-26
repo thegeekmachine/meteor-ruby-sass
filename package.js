@@ -1,7 +1,7 @@
 Package.describe({
     summary: 'Style with attitude.',
     git: "https://github.com/thegeekmachine/meteor-ruby-sass.git",
-    version: "0.1.1",
+    version: "0.1.2",
     name: 'thegeekmachine:ruby-sass'
 });
 
