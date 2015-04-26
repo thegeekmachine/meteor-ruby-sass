@@ -213,7 +213,7 @@ _.extend(Compiler.prototype, {
 
     compile: function (sourceFile) {
         if (Path.basename(sourceFile)[0] === '_') {
-            return;
+            return null;
         }
 
         var compilerArgs = this.options()
@@ -244,10 +244,12 @@ var compile = function(compileStep) {
 
     try {
         var data = compiler.compile(sourceFile);
-        compileStep.addStylesheet({
-            path: compileStep.inputPath + '.css',
-            data: data.data
-        });
+        if (data != null) {
+            compileStep.addStylesheet({
+                path: compileStep.inputPath + '.css',
+                data: data.data
+            });
+        }
     }
     catch (error) {
         compileStep.error({
